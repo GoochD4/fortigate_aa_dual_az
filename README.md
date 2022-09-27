@@ -8,6 +8,9 @@
   - [FAQ \Troubleshoot](./README.md#faq--troubleshoot)
 
 ## Overview
+
+This is a Fork of https://github.com/40netse/fortigate_aa_dual_az.git.  The original design only added two interfaces for the FortiGate.  A Customer requested the addition of a separate, dedicated management port.  This branch adds the extra ENI, Subnets and Route Tables, as well as the requisite FortiGate Configurations.
+
 This set of templates deploys a pair of Active-Active Fortigates across a DUAL AZ Base VPC setup. The Fortigates 
 are configured with autoscale "configuration sync" enabled. This allows the Fortigate in AZ1 to become the 
 "configuration primary" and all config changes should be performed on this instance. All changes will be synced to the 
@@ -47,7 +50,7 @@ On the egress side of the firewalls, a Gateway Load Balancer load-balances all e
 ## Deployment
 This set of Terraform templates should be cloned and deployed using the following commands:
 
-    git clone https://github.com/40netse/fortigate_aa_dual_az.git
+    git clone https://github.com/GoochD4/fortigate_aa_dual_az.git
     cp terraform.tfvars.example terraform.tfvars
     edit terraform.tfvars and change user deployment options
     terraform init 
@@ -99,7 +102,7 @@ also create the TGW, TGW Attachments for each VPC, and VPC specific route tables
 the traffic correctly depending on the direction of the traffic. 
 
 **Reference Diagram:**
-![Example Diagram](./content/fortigate-aa-dual-az.png)
+![Example Diagram](./content/AA-with-management.png)
 
 These templates provide FortiOS configuration that includes a port-forwarding vip to ssh into the East VPC and 
 West VPC Linux instances on port 2222 for the East VPC and 2223 on the West VPC Linux instances. You will need to 
