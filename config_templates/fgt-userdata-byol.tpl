@@ -38,6 +38,16 @@ set mtu 9001
 next
 end
 
+edit port3
+set alias private
+set mode static
+set ip ${Port3IP} ${mgmt_subnet_mask}
+set allowaccess ping fgfm https
+set mtu-override enable
+set mtu 9001
+next
+end
+
 config system vdom-exception
 edit 0
 set object system.interface
@@ -75,6 +85,11 @@ edit 0
 set device port2
 set dst ${security_cidr}
 set gateway ${PrivateSubnetRouterIP}
+next
+edit 0
+set device port2
+set dst ${security_cidr}
+set gateway ${MgmtSubnetRouterIP}
 next
 edit 0
 set device port2

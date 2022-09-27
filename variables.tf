@@ -10,7 +10,7 @@ variable "availability_zone1" {
 variable "availability_zone2" {
   description = "Provide the second availability zone to create the subnets in"
 }
-variable subnet_bits {
+variable "subnet_bits" {
   description = "Number of bits in the network portion of the subnet CIDR"
 }
 variable "public_subnet_index" {
@@ -22,6 +22,9 @@ variable "private_subnet_index" {
 variable "tgw_subnet_index" {
   description = "Index of the tgw subnet"
 }
+variable "mgmt_subnet_index" {
+  description = "Index of the mgmt subnet"
+}
 variable "keypair" {
   description = "Keypair for instances that support keypairs"
 }
@@ -32,37 +35,29 @@ variable "env" {
   description = "The Tag Environment to differentiate prod/test/dev"
 }
 variable "vpc_name_security" {
-    description = "Name of Security VPC"
+  description = "Name of Security VPC"
 }
 variable "vpc_name_east" {
-    description = "Name of east VPC"
+  description = "Name of east VPC"
 }
 variable "vpc_name_west" {
-    description = "Name of west VPC"
+  description = "Name of west VPC"
 }
 variable "vpc_cidr_security" {
-    description = "CIDR for the whole security VPC"
+  description = "CIDR for the whole security VPC"
 }
 variable "vpc_cidr_east" {
-    description = "CIDR for the whole east VPC"
+  description = "CIDR for the whole east VPC"
 }
 variable "vpc_cidr_west" {
-    description = "CIDR for the whole west VPC"
+  description = "CIDR for the whole west VPC"
 }
 variable "fgt_admin_password" {
   description = "Fortigate Admin Password"
 }
-variable "fgt_password_parameter_name" {
-  description = "Password Parameter Name in SSM for default Fortigate Password"
-}
-variable "use_parameter_store" {
-  description = "Boolean to use AWS Systems Manager Parameter Store to store Fortigate Password"
-  type = bool
-  default = false
-}
 variable "fgt_admin_sport" {
   description = "Adminstrative TCP Port for HTTPS GUI"
-  default = 443
+  default     = 443
 }
 variable "fortios_version" {
   description = "FortiOS Version for the AMI Search String"
@@ -95,7 +90,7 @@ variable "elb_listener_port" {
 }
 variable "create_public_elastic_ip" {
   description = "Boolean Create the failover elastic ip in the public subnet."
-  type = bool
+  type        = bool
 }
 variable "enable_fortimanager" {
   description = "Boolean to allow creation of Fortimanager Instance in Security VPC"
@@ -103,11 +98,11 @@ variable "enable_fortimanager" {
 }
 variable "use_fortimanager_byol" {
   description = "Boolean to use Fortimanager license, ami, and configuration template"
-  type = bool
+  type        = bool
 }
 variable "fortimanager_enable_public_ips" {
   description = "Boolean to allocatee a public IP (EIP) for Fortimanager"
-  type = bool
+  type        = bool
 }
 variable "fortimanager_sg_name" {
   description = "Fortimanager Security Group Name"
@@ -132,40 +127,46 @@ variable "fortimanager_byol_license" {
 //  type = bool
 //}
 variable "vpc_tag_key" {
-    description = "Random Tag Key to place on VPC for data ID"
+  description = "Random Tag Key to place on VPC for data ID"
 }
 variable "vpc_tag_value" {
-    description = "Random Tag Value to place on VPC for data ID"
+  description = "Random Tag Value to place on VPC for data ID"
 }
 variable "create_transit_gateway" {
   description = "Boolean Create the transit gateway in this deployment. If TGW isn't created, neither will connected objects"
-  type = bool
+  type        = bool
 }
 variable "appliance_mode_support" {
   description = "Boolean to turn on appliance mode support on security vpc tgw attachment"
-  type = bool
+  type        = bool
 }
 variable "use_fortigate_byol" {
   description = "Boolean Use the Fortigate BYOL AMI"
-  type = bool
+  type        = bool
 }
 variable "public1_description" {
-    description = "Description Public 1 Subnet TAG"
+  description = "Description Public 1 Subnet TAG"
 }
 variable "private1_description" {
-    description = "Description Private 1 TO Subnet TAG"
+  description = "Description Private 1 TO Subnet TAG"
 }
 variable "tgw1_description" {
-    description = "Description TGW 1 TO Subnet TAG"
+  description = "Description TGW 1 TO Subnet TAG"
+}
+variable "mgmt1_description" {
+  description = "Description mgmt1 Subnet TAG"
 }
 variable "public2_description" {
-    description = "Description Public 2 Subnet TAG"
+  description = "Description Public 2 Subnet TAG"
 }
 variable "private2_description" {
-    description = "Description Private 2 Subnet TAG"
+  description = "Description Private 2 Subnet TAG"
 }
 variable "tgw2_description" {
-    description = "Description TGW 2 Subnet TAG"
+  description = "Description TGW 2 Subnet TAG"
+}
+variable "mgmt2_description" {
+  description = "Description mgmt2 Subnet TAG"
 }
 variable "cidr_for_access" {
   description = "CIDR to use for security group access"

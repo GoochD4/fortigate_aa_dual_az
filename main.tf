@@ -3,13 +3,13 @@
 # See below default_tags below
 #
 locals {
-    common_tags = {
+  common_tags = {
     Environment = var.env
   }
 }
 
 locals {
-    id_tag = var.vpc_tag_key != "" ? tomap({(var.vpc_tag_key) = (var.vpc_tag_value)}) : {}
+  id_tag = var.vpc_tag_key != "" ? tomap({ (var.vpc_tag_key) = (var.vpc_tag_value) }) : {}
 }
 
 #
@@ -17,15 +17,12 @@ locals {
 # ref: https://www.hashicorp.com/blog/default-tags-in-the-terraform-aws-provider
 #
 provider "aws" {
-  region     = var.aws_region
+  region = var.aws_region
   default_tags {
     tags = merge(local.common_tags, local.id_tag)
   }
 }
 
-locals {
-  ssm_parameter_store_name = "/${var.cp}/${var.env}/${var.fgt_password_parameter_name}"
-}
 #
 # Locals to make az definitions and subnet'g easier.
 #
@@ -47,6 +44,9 @@ locals {
   tgw_subnet_cidr_az1 = cidrsubnet(var.vpc_cidr_security, var.subnet_bits, var.tgw_subnet_index)
 }
 locals {
+  mgmt_subnet_cidr_az1 = cidrsubnet(var.vpc_cidr_security, var.subnet_bits, var.mgmt_subnet_index)
+}
+locals {
   public_subnet_cidr_az2 = cidrsubnet(var.vpc_cidr_security, var.subnet_bits, (var.public_subnet_index * 10))
 }
 locals {
@@ -56,16 +56,25 @@ locals {
   tgw_subnet_cidr_az2 = cidrsubnet(var.vpc_cidr_security, var.subnet_bits, (var.tgw_subnet_index * 10))
 }
 locals {
+  mgmt_subnet_cidr_az2 = cidrsubnet(var.vpc_cidr_security, var.subnet_bits, (var.mgmt_subnet_index * 10))
+}
+locals {
   fgt_public1_ip_address = cidrhost(local.public_subnet_cidr_az1, var.fgt_host_ip)
 }
 locals {
   fgt_private1_ip_address = cidrhost(local.private_subnet_cidr_az1, var.fgt_host_ip)
 }
 locals {
+  fgt_mgmt1_ip_address = cidrhost(local.mgmt_subnet_cidr_az1, var.fgt_host_ip)
+}
+locals {
   fgt_public2_ip_address = cidrhost(local.public_subnet_cidr_az2, var.fgt_host_ip)
 }
 locals {
   fgt_private2_ip_address = cidrhost(local.private_subnet_cidr_az2, var.fgt_host_ip)
+}
+locals {
+  fgt_mgmt2_ip_address = cidrhost(local.mgmt_subnet_cidr_az2, var.fgt_host_ip)
 }
 locals {
   linux_east_ip_address = cidrhost(var.vpc_cidr_east, var.linux_host_ip)
@@ -82,13 +91,13 @@ locals {
 # Generate a random string and append to any resources that need unique names
 #
 resource "random_string" "random" {
-  length           = 5
-  special          = false
+  length  = 5
+  special = false
 }
 
-data "aws_ssm_parameter" "fgt_password" {
-  name = local.ssm_parameter_store_name
-}
+
+
+
 #
 # Userdata with variable substitutions for the Fortigate configuration.
 # This template is for the BYOL instances. Same as the PAYGO, but with
@@ -101,26 +110,29 @@ data "template_file" "fgt_userdata_byol1" {
   template = file("./config_templates/fgt-userdata-byol.tpl")
 
   vars = {
-    fgt_id                = var.fortigate_hostname_1
-    Port1IP               = local.fgt_public1_ip_address
-    Port2IP               = local.fgt_private1_ip_address
-    security_cidr         = var.vpc_cidr_security
-    spoke1_cidr           = var.vpc_cidr_east
-    spoke2_cidr           = var.vpc_cidr_west
-    fgt_byol_license      = file("${path.module}/${var.fgt_byol_1_license}")
-    PublicSubnetRouterIP  = cidrhost(local.public_subnet_cidr_az1, 1)
-    public_subnet_mask    = cidrnetmask(local.public_subnet_cidr_az1)
-    private_subnet_mask   = cidrnetmask(local.private_subnet_cidr_az1)
-    PrivateSubnetRouterIP = cidrhost(local.private_subnet_cidr_az1, 1)
-    fgt_admin_password    = var.use_parameter_store ? data.aws_ssm_parameter.fgt_password.value : var.fgt_admin_password
-    fortimanager_ip       = local.fortimanager_ip_address
-    gwlb_ip1              = element(module.vpc-gwlb.gwlb_ip1, 0)
-    gwlb_ip2              = element(module.vpc-gwlb.gwlb_ip2, 0)
-    config-sync-role      = "primary"
-    config-sync-port      = var.config_sync_port
-    config-sync-secret    = var.config_sync_secret
+    fgt_id                          = var.fortigate_hostname_1
+    Port1IP                         = local.fgt_public1_ip_address
+    Port2IP                         = local.fgt_private1_ip_address
+    Port3IP                         = local.fgt_mgmt1_ip_address
+    security_cidr                   = var.vpc_cidr_security
+    spoke1_cidr                     = var.vpc_cidr_east
+    spoke2_cidr                     = var.vpc_cidr_west
+    fgt_byol_license                = file("${path.module}/${var.fgt_byol_1_license}")
+    PublicSubnetRouterIP            = cidrhost(local.public_subnet_cidr_az1, 1)
+    public_subnet_mask              = cidrnetmask(local.public_subnet_cidr_az1)
+    private_subnet_mask             = cidrnetmask(local.private_subnet_cidr_az1)
+    PrivateSubnetRouterIP           = cidrhost(local.private_subnet_cidr_az1, 1)
+    mgmt_subnet_mask                = cidrnetmask(local.mgmt_subnet_cidr_az1)
+    MgmtSubnetRouterIP              = cidrhost(local.mgmt_subnet_cidr_az1, 1)
+    fgt_admin_password              = var.fgt_admin_password
+    fortimanager_ip                 = local.fortimanager_ip_address
+    gwlb_ip1                        = element(module.vpc-gwlb.gwlb_ip1, 0)
+    gwlb_ip2                        = element(module.vpc-gwlb.gwlb_ip2, 0)
+    config-sync-role                = "primary"
+    config-sync-port                = var.config_sync_port
+    config-sync-secret              = var.config_sync_secret
     config-sync-primary-peer-stanza = ""
-    admin_port            = var.fgt_admin_sport
+    admin_port                      = var.fgt_admin_sport
   }
 }
 
@@ -128,27 +140,30 @@ data "template_file" "fgt_userdata_byol2" {
   template = file("./config_templates/fgt-userdata-byol.tpl")
 
   vars = {
-    fgt_id                = var.fortigate_hostname_2
-    Port1IP               = local.fgt_public2_ip_address
-    Port2IP               = local.fgt_private2_ip_address
-    PrivateSubnet         = local.private_subnet_cidr_az2
-    security_cidr         = var.vpc_cidr_security
-    spoke1_cidr           = var.vpc_cidr_east
-    spoke2_cidr           = var.vpc_cidr_west
-    fgt_byol_license      = file("${path.module}/${var.fgt_byol_2_license}")
-    PublicSubnetRouterIP  = cidrhost(local.public_subnet_cidr_az2, 1)
-    public_subnet_mask    = cidrnetmask(local.public_subnet_cidr_az2)
-    private_subnet_mask   = cidrnetmask(local.private_subnet_cidr_az2)
-    PrivateSubnetRouterIP = cidrhost(local.private_subnet_cidr_az2, 1)
-    fgt_admin_password    = var.use_parameter_store ? data.aws_ssm_parameter.fgt_password.value : var.fgt_admin_password
-    fortimanager_ip       = local.fortimanager_ip_address
-    gwlb_ip1              = element(module.vpc-gwlb.gwlb_ip1, 0)
-    gwlb_ip2              = element(module.vpc-gwlb.gwlb_ip2, 0)
-    config-sync-role      = "secondary"
-    config-sync-port      = var.config_sync_port
-    config-sync-secret    = var.config_sync_secret
+    fgt_id                          = var.fortigate_hostname_2
+    Port1IP                         = local.fgt_public2_ip_address
+    Port2IP                         = local.fgt_private2_ip_address
+    Port3IP                         = local.fgt_mgmt2_ip_address
+    PrivateSubnet                   = local.private_subnet_cidr_az2
+    security_cidr                   = var.vpc_cidr_security
+    spoke1_cidr                     = var.vpc_cidr_east
+    spoke2_cidr                     = var.vpc_cidr_west
+    fgt_byol_license                = file("${path.module}/${var.fgt_byol_2_license}")
+    PublicSubnetRouterIP            = cidrhost(local.public_subnet_cidr_az2, 1)
+    public_subnet_mask              = cidrnetmask(local.public_subnet_cidr_az2)
+    private_subnet_mask             = cidrnetmask(local.private_subnet_cidr_az2)
+    PrivateSubnetRouterIP           = cidrhost(local.private_subnet_cidr_az2, 1)
+    mgmt_subnet_mask                = cidrnetmask(local.mgmt_subnet_cidr_az2)
+    MgmtSubnetRouterIP              = cidrhost(local.mgmt_subnet_cidr_az2, 1)
+    fgt_admin_password              = var.fgt_admin_password
+    fortimanager_ip                 = local.fortimanager_ip_address
+    gwlb_ip1                        = element(module.vpc-gwlb.gwlb_ip1, 0)
+    gwlb_ip2                        = element(module.vpc-gwlb.gwlb_ip2, 0)
+    config-sync-role                = "secondary"
+    config-sync-port                = var.config_sync_port
+    config-sync-secret              = var.config_sync_secret
     config-sync-primary-peer-stanza = "set primary-ip ${local.fgt_public1_ip_address}"
-    admin_port            = var.fgt_admin_sport
+    admin_port                      = var.fgt_admin_sport
   }
 }
 
@@ -156,25 +171,25 @@ data "template_file" "fgt_userdata_paygo1" {
   template = file("./config_templates/fgt-userdata-paygo.tpl")
 
   vars = {
-    fgt_id                = var.fortigate_hostname_1
-    Port1IP               = local.fgt_public1_ip_address
-    Port2IP               = local.fgt_private1_ip_address
-    security_cidr         = var.vpc_cidr_security
-    spoke1_cidr           = var.vpc_cidr_east
-    spoke2_cidr           = var.vpc_cidr_west
-    PublicSubnetRouterIP  = cidrhost(local.public_subnet_cidr_az1, 1)
-    public_subnet_mask    = cidrnetmask(local.public_subnet_cidr_az1)
-    private_subnet_mask   = cidrnetmask(local.private_subnet_cidr_az1)
-    PrivateSubnetRouterIP = cidrhost(local.private_subnet_cidr_az1, 1)
-    fgt_admin_password    = var.use_parameter_store ? data.aws_ssm_parameter.fgt_password.value : var.fgt_admin_password
-    fortimanager_ip       = local.fortimanager_ip_address
-    gwlb_ip1              = element(module.vpc-gwlb.gwlb_ip1, 0)
-    gwlb_ip2              = element(module.vpc-gwlb.gwlb_ip2, 0)
-    config-sync-role      = "primary"
-    config-sync-port      = var.config_sync_port
-    config-sync-secret    = var.config_sync_secret
+    fgt_id                          = var.fortigate_hostname_1
+    Port1IP                         = local.fgt_public1_ip_address
+    Port2IP                         = local.fgt_private1_ip_address
+    security_cidr                   = var.vpc_cidr_security
+    spoke1_cidr                     = var.vpc_cidr_east
+    spoke2_cidr                     = var.vpc_cidr_west
+    PublicSubnetRouterIP            = cidrhost(local.public_subnet_cidr_az1, 1)
+    public_subnet_mask              = cidrnetmask(local.public_subnet_cidr_az1)
+    private_subnet_mask             = cidrnetmask(local.private_subnet_cidr_az1)
+    PrivateSubnetRouterIP           = cidrhost(local.private_subnet_cidr_az1, 1)
+    fgt_admin_password              = var.fgt_admin_password
+    fortimanager_ip                 = local.fortimanager_ip_address
+    gwlb_ip1                        = element(module.vpc-gwlb.gwlb_ip1, 0)
+    gwlb_ip2                        = element(module.vpc-gwlb.gwlb_ip2, 0)
+    config-sync-role                = "primary"
+    config-sync-port                = var.config_sync_port
+    config-sync-secret              = var.config_sync_secret
     config-sync-primary-peer-stanza = ""
-    admin_port            = var.fgt_admin_sport
+    admin_port                      = var.fgt_admin_sport
   }
 }
 
@@ -182,29 +197,59 @@ data "template_file" "fgt_userdata_paygo2" {
   template = file("./config_templates/fgt-userdata-paygo.tpl")
 
   vars = {
-    fgt_id                = var.fortigate_hostname_2
-    Port1IP               = local.fgt_public2_ip_address
-    Port2IP               = local.fgt_private2_ip_address
-    PrivateSubnet         = local.private_subnet_cidr_az2
-    security_cidr         = var.vpc_cidr_security
-    spoke1_cidr           = var.vpc_cidr_east
-    spoke2_cidr           = var.vpc_cidr_west
-    PublicSubnetRouterIP  = cidrhost(local.public_subnet_cidr_az2, 1)
-    public_subnet_mask    = cidrnetmask(local.public_subnet_cidr_az2)
-    private_subnet_mask   = cidrnetmask(local.private_subnet_cidr_az2)
-    PrivateSubnetRouterIP = cidrhost(local.private_subnet_cidr_az2, 1)
-    fgt_admin_password    = var.use_parameter_store ? data.aws_ssm_parameter.fgt_password.value : var.fgt_admin_password
-    fortimanager_ip       = local.fortimanager_ip_address
-    gwlb_ip1              = element(module.vpc-gwlb.gwlb_ip1, 0)
-    gwlb_ip2              = element(module.vpc-gwlb.gwlb_ip2, 0)
-    config-sync-role      = "secondary"
-    config-sync-port      = var.config_sync_port
-    config-sync-secret    = var.config_sync_secret
+    fgt_id                          = var.fortigate_hostname_2
+    Port1IP                         = local.fgt_public2_ip_address
+    Port2IP                         = local.fgt_private2_ip_address
+    PrivateSubnet                   = local.private_subnet_cidr_az2
+    security_cidr                   = var.vpc_cidr_security
+    spoke1_cidr                     = var.vpc_cidr_east
+    spoke2_cidr                     = var.vpc_cidr_west
+    PublicSubnetRouterIP            = cidrhost(local.public_subnet_cidr_az2, 1)
+    public_subnet_mask              = cidrnetmask(local.public_subnet_cidr_az2)
+    private_subnet_mask             = cidrnetmask(local.private_subnet_cidr_az2)
+    PrivateSubnetRouterIP           = cidrhost(local.private_subnet_cidr_az2, 1)
+    fgt_admin_password              = var.fgt_admin_password
+    fortimanager_ip                 = local.fortimanager_ip_address
+    gwlb_ip1                        = element(module.vpc-gwlb.gwlb_ip1, 0)
+    gwlb_ip2                        = element(module.vpc-gwlb.gwlb_ip2, 0)
+    config-sync-role                = "secondary"
+    config-sync-port                = var.config_sync_port
+    config-sync-secret              = var.config_sync_secret
     config-sync-primary-peer-stanza = "set primary-ip ${local.fgt_public1_ip_address}"
-    admin_port            = var.fgt_admin_sport
+    admin_port                      = var.fgt_admin_sport
   }
 }
+#add third ENI to FortiGate
+resource "aws_network_interface" "mgmt1_eni" {
+  subnet_id         = aws_subnet.mgmt1-subnet.id
+  private_ips       = [local.fgt_mgmt1_ip_address]
+  security_groups   = [module.allow_private_subnets.id]
+  source_dest_check = false
+  attachment {
+    instance = module.fortigate_1.instance_id
 
+    device_index = 3
+  }
+  tags = {
+
+    Name = "FortiGate1-ENI_mgmt"
+  }
+}
+resource "aws_network_interface" "mgmt2_eni" {
+  subnet_id         = aws_subnet.mgmt2-subnet.id
+  private_ips       = [local.fgt_mgmt2_ip_address]
+  security_groups   = [module.allow_private_subnets.id]
+  source_dest_check = false
+  attachment {
+    instance = module.fortigate_2.instance_id
+
+    device_index = 3
+  }
+  tags = {
+
+    Name = "FortiGate2-ENI_mgmt"
+  }
+}
 
 #
 # AMI to be used by the BYOL instance of Fortigate]
@@ -214,16 +259,16 @@ data "aws_ami" "fortigate_byol" {
   most_recent = true
 
   filter {
-    name                         = "name"
-    values                       = ["FortiGate-VM64-AWS * (${var.fortios_version}) GA*"]
+    name   = "name"
+    values = ["FortiGate-VM64-AWS * (${var.fortios_version}) GA*"]
   }
 
   filter {
-    name                         = "virtualization-type"
-    values                       = ["hvm"]
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 
-  owners                         = ["679593333241"] # Canonical
+  owners = ["679593333241"] # Canonical
 }
 
 
@@ -235,24 +280,24 @@ data "aws_ami" "fortigate_paygo" {
   most_recent = true
 
   filter {
-    name                         = "name"
-    values                       = ["FortiGate-VM64-AWSONDEMAND * (${var.fortios_version}) GA*"]
+    name   = "name"
+    values = ["FortiGate-VM64-AWSONDEMAND * (${var.fortios_version}) GA*"]
   }
 
   filter {
-    name                         = "virtualization-type"
-    values                       = ["hvm"]
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 
-  owners                         = ["679593333241"] # Canonical
+  owners = ["679593333241"] # Canonical
 }
 
 #
 # This is an "allow all" security group, but a place holder for a more strict SG
 #
 module "allow_private_subnets" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_security_group"
-  sg_name= "${var.cp}-${var.env}-${random_string.random.result}-${var.fgt_sg_name} Allow Private Subnets"
+  source  = "git::https://github.com/40netse/terraform-modules.git//aws_security_group"
+  sg_name = "${var.cp}-${var.env}-${random_string.random.result}-${var.fgt_sg_name} Allow Private Subnets"
 
   vpc_id                  = module.base-vpc.vpc_id
   ingress_to_port         = 0
@@ -269,8 +314,8 @@ module "allow_private_subnets" {
 # This is an "allow all" security group, but a place holder for a more strict SG
 #
 module "allow_public_subnets" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_security_group"
-  sg_name= "${var.cp}-${var.env}-${random_string.random.result}-${var.fgt_sg_name} Allow Public Subnets"
+  source  = "git::https://github.com/40netse/terraform-modules.git//aws_security_group"
+  sg_name = "${var.cp}-${var.env}-${random_string.random.result}-${var.fgt_sg_name} Allow Public Subnets"
 
   vpc_id                  = module.base-vpc.vpc_id
   ingress_to_port         = 0
@@ -287,15 +332,15 @@ module "allow_public_subnets" {
 # Security VPC, IGW, Subnets, Route Tables, Route Table Associations
 #
 module "base-vpc" {
-  source                          = "git::https://github.com/40netse/base_vpc_dual_az.git"
-  aws_region                      = var.aws_region
-  customer_prefix                 = var.cp
-  environment                     = var.env
-  vpc_name_security               = var.vpc_name_security
-  availability_zone1              = var.availability_zone1
-  availability_zone2              = var.availability_zone2
-  vpc_cidr_security               = var.vpc_cidr_security
-  subnet_bits                     = var.subnet_bits
+  source             = "git::https://github.com/40netse/base_vpc_dual_az.git"
+  aws_region         = var.aws_region
+  customer_prefix    = var.cp
+  environment        = var.env
+  vpc_name_security  = var.vpc_name_security
+  availability_zone1 = var.availability_zone1
+  availability_zone2 = var.availability_zone2
+  vpc_cidr_security  = var.vpc_cidr_security
+  subnet_bits        = var.subnet_bits
   #
   # Conditionally create the tgw connect subnets, based on creating a TGW
   # If TGW already exists and you want the connect subnets in place for the attachments,
@@ -304,16 +349,36 @@ module "base-vpc" {
   #
   # create_tgw_connect_subnets      = var.create_transit_gateway ? true : false
   #
-  create_tgw_connect_subnets      = true
-  public1_description             = var.public1_description
-  public2_description             = var.public2_description
-  private1_description            = var.private1_description
-  private2_description            = var.private2_description
-  tgw1_description                = var.tgw1_description
-  tgw2_description                = var.tgw2_description
-  vpc_tag_key                     = var.vpc_tag_key
-  vpc_tag_value                   = var.vpc_tag_value
+  create_tgw_connect_subnets = true
+  public1_description        = var.public1_description
+  public2_description        = var.public2_description
+  private1_description       = var.private1_description
+  private2_description       = var.private2_description
+  tgw1_description           = var.tgw1_description
+  tgw2_description           = var.tgw2_description
+  vpc_tag_key                = var.vpc_tag_key
+  vpc_tag_value              = var.vpc_tag_value
 }
+
+# Build HA Subnets in Security VPC
+resource "aws_subnet" "mgmt1-subnet" {
+  vpc_id     = module.base-vpc.vpc_id
+  cidr_block = local.mgmt_subnet_cidr_az1
+
+  tags = {
+    Name = "${var.cp}-${var.env}-${var.mgmt1_description}-subnet"
+  }
+}
+resource "aws_subnet" "mgmt2-subnet" {
+  vpc_id     = module.base-vpc.vpc_id
+  cidr_block = local.mgmt_subnet_cidr_az2
+
+  tags = {
+    Name = "${var.cp}-${var.env}-${var.mgmt1_description}-subnet"
+  }
+}
+
+
 
 #
 # Module call to build the gateway load balancer. FortiOS geneve tunnel configuration
@@ -324,15 +389,15 @@ module "base-vpc" {
 # ref: https://aws.amazon.com/blogs/networking-and-content-delivery/best-practices-for-deploying-gateway-load-balancer/
 #
 module "vpc-gwlb" {
-  source                           = "git::https://github.com/40netse/terraform-modules.git//aws_gwlb"
-  name                             = "${var.cp}-${var.env}"
-  subnet_az1                       = module.base-vpc.private1_subnet_id
-  subnet_az2                       = module.base-vpc.private2_subnet_id
-  elb_listener_port                = var.elb_listener_port
-  enable_cross_az_lb               = var.enable_cross_az_lb
-  vpc_id                           = module.base-vpc.vpc_id
-  instance1_ip                     = element(module.fortigate_1.network_private_interface_ip, 0)
-  instance2_ip                     = element(module.fortigate_2.network_private_interface_ip, 0)
+  source             = "git::https://github.com/40netse/terraform-modules.git//aws_gwlb"
+  name               = "${var.cp}-${var.env}"
+  subnet_az1         = module.base-vpc.private1_subnet_id
+  subnet_az2         = module.base-vpc.private2_subnet_id
+  elb_listener_port  = var.elb_listener_port
+  enable_cross_az_lb = var.enable_cross_az_lb
+  vpc_id             = module.base-vpc.vpc_id
+  instance1_ip       = element(module.fortigate_1.network_private_interface_ip, 0)
+  instance2_ip       = element(module.fortigate_2.network_private_interface_ip, 0)
 }
 #
 # Point the tgw route table default route to the gwlb endpoint. All traffic that comes from the
@@ -401,22 +466,22 @@ resource "aws_route" "tgw2" {
 # ref: https://aws.amazon.com/blogs/networking-and-content-delivery/best-practices-for-deploying-gateway-load-balancer/
 #
 module "vpc-transit-gateway-attachment-security" {
-  count                          = var.create_transit_gateway ? 1 : 0
-  source                         = "git::https://github.com/40netse/terraform-modules.git//aws_tgw_attachment"
-  tgw_attachment_name            = "${var.cp}-${var.env}-${var.vpc_name_security}-tgw-attachment"
+  count               = var.create_transit_gateway ? 1 : 0
+  source              = "git::https://github.com/40netse/terraform-modules.git//aws_tgw_attachment"
+  tgw_attachment_name = "${var.cp}-${var.env}-${var.vpc_name_security}-tgw-attachment"
 
-  transit_gateway_id             = module.vpc-transit-gateway[0].tgw_id
-  subnet_ids                     = [ element(module.base-vpc.tgw1_subnet_id, 0),
-                                     element(module.base-vpc.tgw2_subnet_id, 0) ]
-  vpc_id                         = module.base-vpc.vpc_id
+  transit_gateway_id = module.vpc-transit-gateway[0].tgw_id
+  subnet_ids = [element(module.base-vpc.tgw1_subnet_id, 0),
+  element(module.base-vpc.tgw2_subnet_id, 0)]
+  vpc_id                                          = module.base-vpc.vpc_id
   transit_gateway_default_route_table_propogation = "false"
-  appliance_mode_support         = var.appliance_mode_support ? "enable" : "disable"
+  appliance_mode_support                          = var.appliance_mode_support ? "enable" : "disable"
 }
 
 
 resource "aws_ec2_transit_gateway_route_table" "security" {
-  count                  = var.create_transit_gateway ? 1 : 0
-  transit_gateway_id     = module.vpc-transit-gateway[0].tgw_id
+  count              = var.create_transit_gateway ? 1 : 0
+  transit_gateway_id = module.vpc-transit-gateway[0].tgw_id
   tags = {
     Name = "${var.cp}-${var.env}-Security VPC TGW Route Table"
   }
@@ -450,22 +515,22 @@ resource "aws_ec2_transit_gateway_route" "tgw_route_security_cidr" {
 # East VPC Transit Gateway Attachment, Route Table and Routes
 #
 module "vpc-transit-gateway-attachment-east" {
-  count                          = var.create_transit_gateway ? 1 : 0
-  source                         = "git::https://github.com/40netse/terraform-modules.git//aws_tgw_attachment"
-  tgw_attachment_name            = "${var.cp}-${var.env}-${var.vpc_name_east}-tgw-attachment"
+  count               = var.create_transit_gateway ? 1 : 0
+  source              = "git::https://github.com/40netse/terraform-modules.git//aws_tgw_attachment"
+  tgw_attachment_name = "${var.cp}-${var.env}-${var.vpc_name_east}-tgw-attachment"
 
   transit_gateway_id                              = module.vpc-transit-gateway[0].tgw_id
-  subnet_ids                                      = [ module.subnet-east[0].id ]
+  subnet_ids                                      = [module.subnet-east[0].id]
   transit_gateway_default_route_table_propogation = "false"
   vpc_id                                          = module.vpc-east[0].vpc_id
-  appliance_mode_support         = "disable"
+  appliance_mode_support                          = "disable"
 }
 
 resource "aws_ec2_transit_gateway_route_table" "east" {
-  count                          = var.create_transit_gateway ? 1 : 0
-  transit_gateway_id             = module.vpc-transit-gateway[0].tgw_id
-    tags = {
-      Name = "${var.cp}-${var.env}-East VPC TGW Route Table"
+  count              = var.create_transit_gateway ? 1 : 0
+  transit_gateway_id = module.vpc-transit-gateway[0].tgw_id
+  tags = {
+    Name = "${var.cp}-${var.env}-East VPC TGW Route Table"
   }
 }
 resource "aws_ec2_transit_gateway_route_table_association" "east" {
@@ -494,20 +559,20 @@ resource "aws_ec2_transit_gateway_route" "tgw_route_east_cidr" {
 # West VPC Transit Gateway Attachment, Route Table and Routes
 #
 module "vpc-transit-gateway-attachment-west" {
-  count                          = var.create_transit_gateway ? 1 : 0
-  source                         = "git::https://github.com/40netse/terraform-modules.git//aws_tgw_attachment"
-  tgw_attachment_name            = "${var.cp}-${var.env}-${var.vpc_name_west}-tgw-attachment"
+  count               = var.create_transit_gateway ? 1 : 0
+  source              = "git::https://github.com/40netse/terraform-modules.git//aws_tgw_attachment"
+  tgw_attachment_name = "${var.cp}-${var.env}-${var.vpc_name_west}-tgw-attachment"
 
   transit_gateway_id                              = module.vpc-transit-gateway[0].tgw_id
-  subnet_ids                                      = [ module.subnet-west[0].id ]
+  subnet_ids                                      = [module.subnet-west[0].id]
   transit_gateway_default_route_table_propogation = "false"
   vpc_id                                          = module.vpc-west[0].vpc_id
-  appliance_mode_support         = "disable"
+  appliance_mode_support                          = "disable"
 }
 
 resource "aws_ec2_transit_gateway_route_table" "west" {
-  count                          = var.create_transit_gateway ? 1 : 0
-  transit_gateway_id             = module.vpc-transit-gateway[0].tgw_id
+  count              = var.create_transit_gateway ? 1 : 0
+  transit_gateway_id = module.vpc-transit-gateway[0].tgw_id
   tags = {
     Name = "${var.cp}-${var.env}-West VPC TGW Route Table"
   }
@@ -535,8 +600,8 @@ resource "aws_ec2_transit_gateway_route" "tgw_route_west_default" {
 
 
 resource "aws_default_route_table" "route_security" {
-  count                          = var.create_transit_gateway ? 1 : 0
-  default_route_table_id         = module.base-vpc.vpc_main_route_table_id
+  count                  = var.create_transit_gateway ? 1 : 0
+  default_route_table_id = module.base-vpc.vpc_main_route_table_id
   tags = {
     Name = "default table for security vpc (unused)"
   }
@@ -546,20 +611,20 @@ resource "aws_default_route_table" "route_security" {
 # East VPC
 #
 module "vpc-east" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_vpc"
-  count                      = var.create_transit_gateway ? 1 : 0
-  vpc_name                   = "${var.cp}-${var.env}-${var.vpc_name_east}-vpc"
-  vpc_cidr                   = var.vpc_cidr_east
+  source   = "git::https://github.com/40netse/terraform-modules.git//aws_vpc"
+  count    = var.create_transit_gateway ? 1 : 0
+  vpc_name = "${var.cp}-${var.env}-${var.vpc_name_east}-vpc"
+  vpc_cidr = var.vpc_cidr_east
 }
 
 module "subnet-east" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_subnet"
-  count                      = var.create_transit_gateway ? 1 : 0
-  subnet_name                = "${var.cp}-${var.env}-${var.vpc_name_east}-subnet"
+  source      = "git::https://github.com/40netse/terraform-modules.git//aws_subnet"
+  count       = var.create_transit_gateway ? 1 : 0
+  subnet_name = "${var.cp}-${var.env}-${var.vpc_name_east}-subnet"
 
-  vpc_id                     = module.vpc-east[0].vpc_id
-  availability_zone          = local.availability_zone_1
-  subnet_cidr                = var.vpc_cidr_east
+  vpc_id            = module.vpc-east[0].vpc_id
+  availability_zone = local.availability_zone_1
+  subnet_cidr       = var.vpc_cidr_east
 }
 
 #
@@ -567,11 +632,11 @@ module "subnet-east" {
 # that points to the TGW Attachment
 #
 resource "aws_default_route_table" "route_east" {
-  count                      = var.create_transit_gateway ? 1 : 0
+  count                  = var.create_transit_gateway ? 1 : 0
   default_route_table_id = module.vpc-east[0].vpc_main_route_table_id
 
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block         = "0.0.0.0/0"
     transit_gateway_id = module.vpc-transit-gateway[0].tgw_id
   }
   tags = {
@@ -580,41 +645,41 @@ resource "aws_default_route_table" "route_east" {
 }
 
 module "rta-east" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_route_table_association"
-  count                      = var.create_transit_gateway ? 1 : 0
-  subnet_ids                 = module.subnet-east[0].id
-  route_table_id             = module.vpc-east[0].vpc_main_route_table_id
+  source         = "git::https://github.com/40netse/terraform-modules.git//aws_route_table_association"
+  count          = var.create_transit_gateway ? 1 : 0
+  subnet_ids     = module.subnet-east[0].id
+  route_table_id = module.vpc-east[0].vpc_main_route_table_id
 }
 
 #
 # West VPC
 #
 module "vpc-west" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_vpc"
-  count                      = var.create_transit_gateway ? 1 : 0
-  vpc_name                   = "${var.cp}-${var.env}-${var.vpc_name_west}-vpc"
-  vpc_cidr                   = var.vpc_cidr_west
+  source   = "git::https://github.com/40netse/terraform-modules.git//aws_vpc"
+  count    = var.create_transit_gateway ? 1 : 0
+  vpc_name = "${var.cp}-${var.env}-${var.vpc_name_west}-vpc"
+  vpc_cidr = var.vpc_cidr_west
 
 }
 
 module "subnet-west" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_subnet"
-  count                      = var.create_transit_gateway ? 1 : 0
-  subnet_name                = "${var.cp}-${var.env}-${var.vpc_name_west}-subnet"
+  source      = "git::https://github.com/40netse/terraform-modules.git//aws_subnet"
+  count       = var.create_transit_gateway ? 1 : 0
+  subnet_name = "${var.cp}-${var.env}-${var.vpc_name_west}-subnet"
 
-  vpc_id                     = module.vpc-west[0].vpc_id
-  availability_zone          = local.availability_zone_2
-  subnet_cidr                = var.vpc_cidr_west
+  vpc_id            = module.vpc-west[0].vpc_id
+  availability_zone = local.availability_zone_2
+  subnet_cidr       = var.vpc_cidr_west
 }
 #
 # Default route table that is created with the west VPC. We just need to add a default route
 # that points to the TGW Attachment
 #
 resource "aws_default_route_table" "route_west" {
-  default_route_table_id     = module.vpc-west[0].vpc_main_route_table_id
-  count                      = var.create_transit_gateway ? 1 : 0
+  default_route_table_id = module.vpc-west[0].vpc_main_route_table_id
+  count                  = var.create_transit_gateway ? 1 : 0
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block         = "0.0.0.0/0"
     transit_gateway_id = module.vpc-transit-gateway[0].tgw_id
   }
   tags = {
@@ -625,9 +690,9 @@ resource "aws_default_route_table" "route_west" {
 module "rta-west" {
   source = "git::https://github.com/40netse/terraform-modules.git//aws_route_table_association"
 
-  count                      = var.create_transit_gateway ? 1 : 0
-  subnet_ids                 = module.subnet-west[0].id
-  route_table_id             = module.vpc-west[0].vpc_main_route_table_id
+  count          = var.create_transit_gateway ? 1 : 0
+  subnet_ids     = module.subnet-west[0].id
+  route_table_id = module.vpc-west[0].vpc_main_route_table_id
 }
 
 
@@ -635,7 +700,7 @@ module "rta-west" {
 # Fortigate HA Pair and IAM Profiles
 #
 module "iam_profile" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance_iam_role"
+  source        = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance_iam_role"
   iam_role_name = "${var.cp}-${var.env}-${random_string.random.result}-fortigate-instance_role"
 
 }
@@ -647,26 +712,26 @@ module "iam_profile" {
 # use create_public_elastic_ip bool if you want EIPs on the public interface
 #
 module "fortigate_1" {
-  source                      = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
+  source = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
 
-  aws_ec2_instance_name       = "${var.cp}-${var.env}-${var.vpc_name_security}-${var.fortigate_instance_name_1}"
-  availability_zone           = local.availability_zone_1
-  enable_private_interface    = true
-  enable_sync_interface       = false
-  enable_hamgmt_interface     = false
-  enable_public_ips           = var.create_public_elastic_ip
-  public_subnet_id            = module.base-vpc.public1_subnet_id
-  public_ip_address           = local.fgt_public1_ip_address
-  private_subnet_id           = module.base-vpc.private1_subnet_id
-  private_ip_address          = local.fgt_private1_ip_address
-  aws_ami                     = var.use_fortigate_byol ? data.aws_ami.fortigate_byol.id : data.aws_ami.fortigate_paygo.id
-  keypair                     = var.keypair
-  instance_type               = var.fortigate_instance_type
-  security_group_private_id   = module.allow_private_subnets.id
-  security_group_public_id    = module.allow_public_subnets.id
-  acl                         = var.acl
-  iam_instance_profile_id     = module.iam_profile.id
-  userdata_rendered           = var.use_fortigate_byol ? data.template_file.fgt_userdata_byol1.rendered : data.template_file.fgt_userdata_paygo1.rendered
+  aws_ec2_instance_name     = "${var.cp}-${var.env}-${var.vpc_name_security}-${var.fortigate_instance_name_1}"
+  availability_zone         = local.availability_zone_1
+  enable_private_interface  = true
+  enable_sync_interface     = false
+  enable_hamgmt_interface   = false
+  enable_public_ips         = var.create_public_elastic_ip
+  public_subnet_id          = module.base-vpc.public1_subnet_id
+  public_ip_address         = local.fgt_public1_ip_address
+  private_subnet_id         = module.base-vpc.private1_subnet_id
+  private_ip_address        = local.fgt_private1_ip_address
+  aws_ami                   = var.use_fortigate_byol ? data.aws_ami.fortigate_byol.id : data.aws_ami.fortigate_paygo.id
+  keypair                   = var.keypair
+  instance_type             = var.fortigate_instance_type
+  security_group_private_id = module.allow_private_subnets.id
+  security_group_public_id  = module.allow_public_subnets.id
+  acl                       = var.acl
+  iam_instance_profile_id   = module.iam_profile.id
+  userdata_rendered         = var.use_fortigate_byol ? data.template_file.fgt_userdata_byol1.rendered : data.template_file.fgt_userdata_paygo1.rendered
 }
 
 
@@ -679,26 +744,26 @@ module "fortigate_1" {
 # use proper userdata rendering and AMI IDs, based on BYOL vs. PAYGO
 #
 module "fortigate_2" {
-  source                      = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
+  source = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
 
-  aws_ec2_instance_name       = "${var.cp}-${var.env}-${var.vpc_name_security}-${var.fortigate_instance_name_2}"
-  availability_zone           = local.availability_zone_2
-  enable_private_interface    = true
-  enable_sync_interface       = false
-  enable_hamgmt_interface     = false
-  enable_public_ips           = var.create_public_elastic_ip
-  public_subnet_id            = module.base-vpc.public2_subnet_id
-  public_ip_address           = local.fgt_public2_ip_address
-  private_subnet_id           = module.base-vpc.private2_subnet_id
-  private_ip_address          = local.fgt_private2_ip_address
-  aws_ami                     = var.use_fortigate_byol ? data.aws_ami.fortigate_byol.id : data.aws_ami.fortigate_paygo.id
-  keypair                     = var.keypair
-  instance_type               = var.fortigate_instance_type
-  security_group_private_id   = module.allow_private_subnets.id
-  security_group_public_id    = module.allow_public_subnets.id
-  acl                         = var.acl
-  iam_instance_profile_id     = module.iam_profile.id
-  userdata_rendered           = var.use_fortigate_byol ? data.template_file.fgt_userdata_byol2.rendered : data.template_file.fgt_userdata_paygo2.rendered
+  aws_ec2_instance_name     = "${var.cp}-${var.env}-${var.vpc_name_security}-${var.fortigate_instance_name_2}"
+  availability_zone         = local.availability_zone_2
+  enable_private_interface  = true
+  enable_sync_interface     = false
+  enable_hamgmt_interface   = false
+  enable_public_ips         = var.create_public_elastic_ip
+  public_subnet_id          = module.base-vpc.public2_subnet_id
+  public_ip_address         = local.fgt_public2_ip_address
+  private_subnet_id         = module.base-vpc.private2_subnet_id
+  private_ip_address        = local.fgt_private2_ip_address
+  aws_ami                   = var.use_fortigate_byol ? data.aws_ami.fortigate_byol.id : data.aws_ami.fortigate_paygo.id
+  keypair                   = var.keypair
+  instance_type             = var.fortigate_instance_type
+  security_group_private_id = module.allow_private_subnets.id
+  security_group_public_id  = module.allow_public_subnets.id
+  acl                       = var.acl
+  iam_instance_profile_id   = module.iam_profile.id
+  userdata_rendered         = var.use_fortigate_byol ? data.template_file.fgt_userdata_byol2.rendered : data.template_file.fgt_userdata_paygo2.rendered
 }
 
 #
@@ -771,8 +836,8 @@ module "ec2-west-sg" {
 # IAM Profile for linux instance
 #
 module "linux_iam_profile" {
-  source = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance_iam_role"
-  count                       = var.create_transit_gateway && var.enable_linux_instances ? 1 : 0
+  source        = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance_iam_role"
+  count         = var.create_transit_gateway && var.enable_linux_instances ? 1 : 0
   iam_role_name = "${var.cp}-${var.env}-${random_string.random.result}-linux-instance_role"
 }
 
@@ -780,40 +845,40 @@ module "linux_iam_profile" {
 # East Linux Instance for Generating East->West Traffic
 #
 module "east_instance" {
-  source                      = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
-  count                       = var.create_transit_gateway && var.enable_linux_instances ? 1 : 0
-  aws_ec2_instance_name       = "${var.cp}-${var.env}-${var.vpc_name_east}-${var.linux_instance_name_east}"
-  enable_public_ips           = false
-  availability_zone           = local.availability_zone_1
-  public_subnet_id            = module.subnet-east[0].id
-  public_ip_address           = local.linux_east_ip_address
-  aws_ami                     = data.aws_ami.ubuntu.id
-  keypair                     = var.keypair
-  instance_type               = var.linux_instance_type
-  security_group_public_id    = module.ec2-east-sg[0].id
-  acl                         = var.acl
-  iam_instance_profile_id     = module.iam_profile.id
-  userdata_rendered           = data.template_file.web_userdata.rendered
+  source                   = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
+  count                    = var.create_transit_gateway && var.enable_linux_instances ? 1 : 0
+  aws_ec2_instance_name    = "${var.cp}-${var.env}-${var.vpc_name_east}-${var.linux_instance_name_east}"
+  enable_public_ips        = false
+  availability_zone        = local.availability_zone_1
+  public_subnet_id         = module.subnet-east[0].id
+  public_ip_address        = local.linux_east_ip_address
+  aws_ami                  = data.aws_ami.ubuntu.id
+  keypair                  = var.keypair
+  instance_type            = var.linux_instance_type
+  security_group_public_id = module.ec2-east-sg[0].id
+  acl                      = var.acl
+  iam_instance_profile_id  = module.iam_profile.id
+  userdata_rendered        = data.template_file.web_userdata.rendered
 }
 
 #
 # West Linux Instance for Generating West->East Traffic
 #
 module "west_instance" {
-  source                      = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
-  count                       = var.create_transit_gateway && var.enable_linux_instances ? 1 : 0
-  aws_ec2_instance_name       = "${var.cp}-${var.env}-${var.vpc_name_west}-${var.linux_instance_name_west}"
-  enable_public_ips           = false
-  availability_zone           = local.availability_zone_2
-  public_subnet_id            = module.subnet-west[0].id
-  public_ip_address           = local.linux_west_ip_address
-  aws_ami                     = data.aws_ami.ubuntu.id
-  keypair                     = var.keypair
-  instance_type               = var.linux_instance_type
-  security_group_public_id    = module.ec2-west-sg[0].id
-  acl                         = var.acl
-  iam_instance_profile_id     = module.iam_profile.id
-  userdata_rendered           = data.template_file.web_userdata.rendered
+  source                   = "git::https://github.com/40netse/terraform-modules.git//aws_ec2_instance"
+  count                    = var.create_transit_gateway && var.enable_linux_instances ? 1 : 0
+  aws_ec2_instance_name    = "${var.cp}-${var.env}-${var.vpc_name_west}-${var.linux_instance_name_west}"
+  enable_public_ips        = false
+  availability_zone        = local.availability_zone_2
+  public_subnet_id         = module.subnet-west[0].id
+  public_ip_address        = local.linux_west_ip_address
+  aws_ami                  = data.aws_ami.ubuntu.id
+  keypair                  = var.keypair
+  instance_type            = var.linux_instance_type
+  security_group_public_id = module.ec2-west-sg[0].id
+  acl                      = var.acl
+  iam_instance_profile_id  = module.iam_profile.id
+  userdata_rendered        = data.template_file.web_userdata.rendered
 }
 
 #
@@ -822,24 +887,24 @@ module "west_instance" {
 # TODO: managed instances. just use PAYGO (use_fortimanager_byol = false) until I figure this out.
 #
 module "fortimanager" {
-  source                      = "git::https://github.com/40netse/fortimanager_existing_vpc.git"
-  count                       = var.enable_fortimanager ? 1 : 0
-  name                        = "${var.cp}-${var.env}-${random_string.random.result}-${var.fortimanager_instance_name}"
-  aws_region                  = var.aws_region
-  cp                          = var.cp
-  env                         = var.env
-  availability_zone           = local.availability_zone_1
-  vpc_id                      = module.base-vpc.vpc_id
-  subnet_id                   = module.base-vpc.tgw1_subnet_id
-  ip_address                  = local.fortimanager_ip_address
-  keypair                     = var.keypair
-  fortimanager_instance_type  = var.fortimanager_instance_type
-  fortimanager_instance_name  = var.fortimanager_instance_name
-  fortimanager_sg_name        = var.fortimanager_sg_name
-  fortimanager_os_version     = var.fortimanager_os_version
-  fmgr_byol_license           = var.fortimanager_byol_license
-  acl                         = var.acl
-  enable_public_ips           = false
-  use_fortimanager_byol       = var.use_fortimanager_byol
-  fmgr_admin_password         = var.fgt_admin_password
+  source                     = "git::https://github.com/40netse/fortimanager_existing_vpc.git"
+  count                      = var.enable_fortimanager ? 1 : 0
+  name                       = "${var.cp}-${var.env}-${random_string.random.result}-${var.fortimanager_instance_name}"
+  aws_region                 = var.aws_region
+  cp                         = var.cp
+  env                        = var.env
+  availability_zone          = local.availability_zone_1
+  vpc_id                     = module.base-vpc.vpc_id
+  subnet_id                  = module.base-vpc.tgw1_subnet_id
+  ip_address                 = local.fortimanager_ip_address
+  keypair                    = var.keypair
+  fortimanager_instance_type = var.fortimanager_instance_type
+  fortimanager_instance_name = var.fortimanager_instance_name
+  fortimanager_sg_name       = var.fortimanager_sg_name
+  fortimanager_os_version    = var.fortimanager_os_version
+  fmgr_byol_license          = var.fortimanager_byol_license
+  acl                        = var.acl
+  enable_public_ips          = false
+  use_fortimanager_byol      = var.use_fortimanager_byol
+  fmgr_admin_password        = var.fgt_admin_password
 }
